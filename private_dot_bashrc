@@ -1,0 +1,54 @@
+# don't put duplicate lines or lines starting with space in the history.
+# See bash(1) for more options
+HISTCONTROL=ignoreboth
+
+# append to the history file, don't overwrite it
+shopt -s histappend
+
+# for setting history length see HISTSIZE and HISTFILESIZE in bash(1)
+HISTSIZE=1000
+HISTFILESIZE=2000
+
+EDITOR=emacs
+
+eval "$(zoxide init bash)"
+eval "$(fzf --bash)"
+eval "$(direnv hook bash)"
+
+# Created by `pipx` on 2024-11-20 17:53:28
+export PATH="$PATH:/data/data/com.termux/files/home/.local/bin"
+
+eval "$(starship init bash)"
+
+# Functions
+cfzf() {
+  fzf_command=("fzf")
+  if [ -n "$1" ]; then
+    fzf_command=($fzf_command "--query=$1" "-1")
+  fi
+
+  file_path=$(chezmoi managed --include=files | ${fzf_command[@]})
+  if [ -z "$file_path" ]; then
+    >&2 echo "No file selected"
+  else
+    chezmoi edit --apply "$HOME/$file_path"
+  fi
+}
+
+# Aliases
+alias sl=ls
+alias la='ls -AF' # Compact view, show hidden
+alias ll='ls -al'
+alias l='ls -a'
+alias l1='ls -1'
+alias lf='ls -F'
+alias py='python'
+alias md='mkdir -p'
+alias g='git'
+alias gs='git status'
+alias ga='git add'
+alias gg='git log --graph --pretty=format:'\''%C(bold)%h%Creset%C(magenta)%d%Creset %s %C(yellow)<%an> %C(cyan)(%cr)%Creset'\'' --abbrev-commit --date=relative'
+alias ggf='git log --graph --date=short --pretty=format:'\''%C(auto)%h %Cgreen%an%Creset %Cblue%cd%Creset %C(auto)%d %s'\'''
+alias gll='git log --graph --pretty=oneline --abbrev-commit'
+alias gc="git commit"
+alias gp="git push"
