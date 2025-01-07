@@ -24,6 +24,8 @@
   (use-package-compute-statistics t)
   (warning-minimum-level :emergency))
 
+(use-package diminish)
+
 (unless (package-installed-p 'vc-use-package)
   (package-vc-install "https://github.com/slotThe/vc-use-package"))
 (require 'vc-use-package)
@@ -71,7 +73,6 @@
 (use-package recentf
   :ensure nil
   :after no-littering
-  :hook (after-init)
   :custom
   (recentf-auto-cleanup 'never)
   :config
@@ -95,7 +96,7 @@
 ;;;; Minibuffer completion and searching improvement packages
 (use-package marginalia
   :after icomplete
-  :hook (after-init . marginalia-mode))
+  :config (marginalia-mode))
 
 (use-package orderless
   :custom
@@ -135,9 +136,10 @@
   ("C-z" . god-local-mode))
 ;;;; which-key
 (use-package which-key
-  :hook (after-init)
   :custom
   (which-key-sort-order #'which-key-key-order-alpha)
+  :config
+  (which-key-mode)
   (with-eval-after-load 'god-mode
     (which-key-enable-god-mode-support)))
 ;;;; embark
@@ -261,7 +263,6 @@ targets."
   (load-theme 'modus-vivendi-tinted :no-confirm))
 ;;;; mode line
 (use-package mood-line
-  :hook (after-init)
   :custom
   (mood-line-glyph-alist mood-line-glyphs-unicode))
 ;;;; Disable ugly and unhelpful UI features
@@ -354,7 +355,8 @@ targets."
 ;;;;; direnv
 (use-package envrc
   :if (executable-find "direnv")
-  :hook (after-init . envrc-global-mode))
+  :config
+  (envrc-global-mode))
 ;;; Notes
 ;;;; Denote
 (use-package denote
@@ -364,8 +366,9 @@ targets."
   (require 'denote-org-dblock)
   (denote-rename-buffer-mode 1)
   :config
-  (when (equal system-configuration "aarch64-unknown-linux-android")
-    (setq denote-directory "~/storage/shared/Documents/kb"))
+  (if (equal system-configuration "aarch64-unknown-linux-android")
+      (setq denote-directory "~/storage/shared/Documents/kb")
+    (setq denote-directory "~/KnowledgeBase"))
   :hook
   (dired-mode . denote-dired-mode)
   :custom
@@ -382,8 +385,8 @@ targets."
 (use-package consult-denote
   :after denote
   :commands (consult-denote-mode)
-  :hook (after-init . consult-denote-mode)
   :config
+  (consult-denote-mode)
   (setq consult-denote-grep-command #'consult-ripgrep))
 
 (use-package denote-explore
@@ -408,8 +411,9 @@ targets."
        ("file" "Link to a document file." "" )))
     (bibtex-align-at-equal-sign t)
   :config
-  (when (equal system-configuration "aarch64-unknown-linux-android")
-    (setq bibtex-files '("~/storage/shared/Documents/bibtex/bibtex.bib"))))
+  (if (equal system-configuration "aarch64-unknown-linux-android")
+      (setq bibtex-files '("~/storage/shared/Documents/bibtex/bibtex.bib"))
+    (setq bibtex-files '("~/bibtex/bibtex.bib"))))
 
 (use-package biblio
   :commands (biblio-lookup))
@@ -432,6 +436,7 @@ targets."
 (use-package citar-embark
   :after citar embark
   :no-require
+  :diminish citar-embark-mode
   :config (citar-embark-mode))
 
 
@@ -794,6 +799,7 @@ e.g., Replace 'Scheduled:' to 'Rept .+1d:'."
   :vc (:fetcher github :repo "yantar92/org-capture-ref"))
 ;;;; beginend - better begin and end buffer
 (use-package beginend
+  :diminish beginend-global-mode
   :config
   (beginend-global-mode))
 ;;;; try - try emacs packages without permanently installing them
@@ -866,3 +872,16 @@ e.g., Replace 'Scheduled:' to 'Rept .+1d:'."
 
 
 
+(custom-set-variables
+ ;; custom-set-variables was added by Custom.
+ ;; If you edit it by hand, you could mess it up, so be careful.
+ ;; Your init file should contain only one such instance.
+ ;; If there is more than one, they won't work right.
+ '(package-vc-selected-packages
+   '((vc-use-package :vc-backend Git :url "https://github.com/slotThe/vc-use-package"))))
+(custom-set-faces
+ ;; custom-set-faces was added by Custom.
+ ;; If you edit it by hand, you could mess it up, so be careful.
+ ;; Your init file should contain only one such instance.
+ ;; If there is more than one, they won't work right.
+ )
