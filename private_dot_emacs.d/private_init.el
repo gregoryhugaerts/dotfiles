@@ -23,6 +23,10 @@
   (use-package-enable-imenu-support t)
   (use-package-compute-statistics t)
   (warning-minimum-level :emergency))
+
+(unless (package-installed-p 'vc-use-package)
+  (package-vc-install "https://github.com/slotThe/vc-use-package"))
+(require 'vc-use-package)
 ;;; Early Packages and functions
 ;;;; load secrets
 (load (concat user-emacs-directory "personal.el") :no-error-if-file-is-missing)
@@ -39,9 +43,19 @@
 ;;; General settings
 (use-package emacs
   :defer nil
+  :init
+    (defun crm-indicator (args)
+    (cons (format "[CRM%s] %s"
+                  (replace-regexp-in-string
+                   "\\`\\[.*?]\\*\\|\\[.*?]\\*\\'" ""
+                   crm-separator)
+                  (car args))
+          (cdr args)))
+  (advice-add #'completing-read-multiple :filter-args #'crm-indicator)
   :config
   (setq tab-always-indent 'complete
 	use-short-answers t
+	read-extended-command-predicate #'command-completion-default-include-p
 	load-prefer-newer t
 	inhibit-startup-screen t
 	inhibit-startup-echo-area-message t
@@ -74,42 +88,23 @@
   (setq dired-dwim-target t
 	dired-kill-when-opening-new-dired-buffer t))
 ;;; Emacs Completion
-;;;; Vertico-style IComplete
-(use-package icomplete
-  :ensure nil
-  :demand t
-  :bind (:map icomplete-minibuffer-map
-	      ("RET"    . icomplete-force-complete-and-exit)
-	      ("M-RET"  . icomplete-fido-exit)
-    	      ("TAB"    . icomplete-force-complete)
-	      ("DEL"    . icomplete-fido-backward-updir)
-	      ("M-."    . embark-act)
-	      ("<down>" . icomplete-forward-completions)
-	      ("<up>"   . icomplete-backward-completions))
+;;;; Vertico
+(use-package vertico
   :config
-  ;; remove arbitrary optimization limits that make icomplete
-  ;; feel old-fashioned
-  (setq icomplete-delay-completions-threshold 0)
-  (setq icomplete-max-delay-chars 0)
-  (setq icomplete-compute-delay 0)
-  (setq icomplete-show-matches-on-no-input t)
-  (setq icomplete-hide-common-prefix nil)
-  (setq icomplete-prospects-height 15)
-  (setq icomplete-with-completion-tables t)
-  (icomplete-vertical-mode 1))
+  (vertico-mode))
 ;;;; Minibuffer completion and searching improvement packages
 (use-package marginalia
   :after icomplete
   :hook (after-init . marginalia-mode))
 
 (use-package orderless
-  :after icomplete
-  :init
-  (setq completion-styles '(orderless flex substring)
-	orderless-component-separator "-"
-        orderless-matching-styles '(orderless-literal orderless-regexp)
-	completion-category-defaults nil
-	completion-category-overrides '((file (styles partial-completion)))))
+  :custom
+  ;; Configure a custom style dispatcher (see the Consult wiki)
+  ;; (orderless-style-dispatchers '(+orderless-consult-dispatch orderless-affix-dispatch))
+  ;; (orderless-component-separator #'orderless-escapable-split-on-space)
+  (completion-styles '(orderless basic))
+  (completion-category-defaults nil)
+  (completion-category-overrides '((file (styles partial-completion)))))
 
 ;;; Usability
 ;;;; consult.el - Consulting completing-read
@@ -364,15 +359,13 @@ targets."
 ;;;; Denote
 (use-package denote
   :after org
-  :commands (denote denote-link-after-creating denote-region denote-silo)  
+  :commands (denote denote-link-after-creating denote-region denote-silo)
   :init
   (require 'denote-org-dblock)
   (denote-rename-buffer-mode 1)
   :config
   (when (equal system-configuration "aarch64-unknown-linux-android")
     (setq denote-directory "~/storage/shared/Documents/kb"))
-  (setq denote-templates
-      '((study note . "* Overview\n\n* Key Features\n\n* Use Cases")))
   :hook
   (dired-mode . denote-dired-mode)
   :custom
@@ -381,6 +374,7 @@ targets."
   (denote-prompts-with-history-as-completion t)
   (denote-prompts '(title keywords))
   (denote-backlinks-show-context t)
+  (denote-journal-extras-title-format 'day-date-month-year)
   :custom-face
   (denote-faces-link ((t (:slant italic)))))
 
@@ -391,13 +385,56 @@ targets."
   :hook (after-init . consult-denote-mode)
   :config
   (setq consult-denote-grep-command #'consult-ripgrep))
-(use-package consult-notes
-  :commands (consult-notes consult-notes-search-in-all-notes)
-  :config
-  (consult-notes-denote-mode 1))
+
 (use-package denote-explore
   :after denote
   :defer t)
+
+(use-package citar-denote
+  :after (citar denote)
+  :defer t
+  :custom
+  (citar-open-always-create-notes t)
+  (citar-denote-subdir "bib")
+  :init
+  (citar-denote-mode))
+
+;;;; bibtex
+(use-package bibtex
+   :custom
+    (bibtex-dialect 'BibTeX)
+    (bibtex-user-optional-fields
+     '(("keywords" "Keywords to describe the entry" "")
+       ("file" "Link to a document file." "" )))
+    (bibtex-align-at-equal-sign t)
+  :config
+  (when (equal system-configuration "aarch64-unknown-linux-android")
+    (setq bibtex-files '("~/storage/shared/Documents/bibtex/bibtex.bib"))))
+
+(use-package biblio
+  :commands (biblio-lookup))
+(use-package biblio-gbooks
+  :after biblio)
+
+(use-package citar
+  :hook
+  (org-mode . citar-capf-setup)
+  :commands (citar-open org-cite-insert)
+  :custom
+  (citar-bibliography bibtex-files)
+  :config
+  (setq citar-at-point-function 'embark-act)
+  (setq org-cite-global-bibliography bibtex-files
+      org-cite-insert-processor 'citar
+      org-cite-follow-processor 'citar
+      org-cite-activate-processor 'citar))
+
+(use-package citar-embark
+  :after citar embark
+  :no-require
+  :config (citar-embark-mode))
+
+
 ;;;; org mode
 (use-package org
   :ensure nil
@@ -413,6 +450,36 @@ targets."
   (org-babel-do-load-languages
    'org-babel-load-languages
    '((plantuml . t)))
+
+  (defun my/org-agenda-entry-get-repeat ()
+    "Get the repeater of the current entry with 'org-get-repeat'."
+    (when-let ((marker (org-get-at-bol 'org-marker))
+               (buffer (marker-buffer marker))
+               (pos (marker-position marker)))
+      (with-current-buffer buffer
+	(goto-char pos)
+	(org-get-repeat))))
+
+  (defun my/org-agenda-update-repeated-entry()
+    "Update the scheduled leader to repeater for current entry.
+
+e.g., Replace 'Scheduled:' to 'Rept .+1d:'."
+    (save-excursion
+      (when-let ((org-repeat (my/org-agenda-entry-get-repeat))
+		 (rept-str (format "Rep %4s: " org-repeat))
+		 (scheduled-leader (car org-agenda-scheduled-leaders)))
+	(when (search-backward scheduled-leader (pos-bol) t)
+          (delete-forward-char (length scheduled-leader))
+          (insert-and-inherit rept-str)))))
+
+  (defun my/org-agenda-update-repeated-entries ()
+    "Update the scheduled leader to repeater for all entries."
+    (save-excursion
+      (goto-char (point-min))
+      (while (text-property-search-forward 'type "scheduled" t)
+	(my/org-agenda-update-repeated-entry))))
+
+  (add-hook 'org-agenda-finalize-hook #'my/org-agenda-update-repeated-entries)
 
   (setq org-plantuml-exec-mode 'plantuml
 	org-plantuml-args '("-headless"))
@@ -453,7 +520,7 @@ targets."
 	org-columns-default-format-for-agenda "%4Effort(Estimated Effort){:} %TODO %25ITEM(Task) %3PRIORITY %TAGS")
   (with-eval-after-load 'org-capture
     (add-to-list 'org-capture-templates '("i" "Inbox" entry (file "inbox.org") "* %?"))
-    (add-to-list 'org-capture-templates '("I" "Inbox(with link)" entry (file "inbox.org") "* %?\n %i"))
+    (add-to-list 'org-capture-templates '("I" "Inbox(with link)" entry (file "inbox.org") "* %?\n %a"))
     (add-to-list 'org-capture-templates '("t" "Task" entry (file "inbox.org") "* TODO %?"))
     (add-to-list 'org-capture-templates '("n" "Permanent note" plain
 					  (file denote-last-path)
@@ -475,8 +542,8 @@ targets."
 
     (add-to-list 'org-capture-templates '("p" "person" entry (file "../Knowledge base/person.org")
 					  "* %^{name}%^{EMAIL}p%^{COMPANY}p%^{JOBTITLE}p\n:PROPERTIES:\n:ID: %(org-id-new)\n:END:" :kill-buffer t  :append)
-		 (add-to-list 'org-capture-templates '("a" "Application" entry (file+headline "solicitaties.org" "Active Applications")
-						       "* %\1 - %\2%^{COMPANY}p%^{JOBTITLE}p%^{LINK}p\n:PROPERTIES:\n:DATE: %t\n:END:\n%?") :append)))
+		 (add-to-list 'org-capture-templates '("a" "Application" entry (file+headline "solicitaties.org" "Applications")
+						       "* %\1 - %\2%^{COMPANY}p%^{JOBTITLE}p%^{LINK}p\n:PROPERTIES:\n:DATE: %u\n:END:\n%?") :append)))
   (defun my/org-agenda-recent-open-loops ()
   (interactive)
       (let ((org-agenda-start-with-log-mode t)
@@ -560,6 +627,7 @@ targets."
         '((light . modus-operandi-tinted)
           (dark  . modus-vivendi-tinted)))
   (setq nice-org-html-default-mode 'dark)
+  (setq nice-org-html-options '(:layout "compact" :collapsing t))
   (setq nice-org-html-headline-bullets nil))
 ;;;; org modern
 (use-package org-modern
@@ -572,52 +640,56 @@ targets."
 ;;;; org super agenda
 (use-package org-super-agenda
   :after org
-  :commands (org-super-agenda-mode)
   :config
-(setq org-agenda-custom-commands
-      '(("g" "gtd view"
-         ((agenda "" ((org-agenda-span 'day)
-                      (org-super-agenda-groups
-                       '((:name "Today"
-                                :time-grid t
-                                :date today
-                                :todo "TODAY"
-                                :scheduled today
-                                :order 1)))))
-          (alltodo "" ((org-agenda-overriding-header "")
-                       (org-super-agenda-groups
-                        '((:name "Quick Picks"
-				 :and (
-				       :effort< "0:30"
-				 :todo "NEXT")
-				 :order 3)
-			  (:name "Next to do"
-                                 :and (:todo "NEXT"
-					:scheduled nil)
-                                 :order 6)
-                          (:name "Important"
-                                 :tag "Important"
-                                 :priority "A"
-                                 :order 1)
-                          (:name "Due Today"
-                                 :deadline today
-                                 :order 2)
-                          (:name "Due Soon"
-                                 :deadline future
-                                 :order 8)
-                          (:name "Overdue"
-                                 :deadline past
-                                 :order 7)
-                          (:name "Waiting"
-                                 :todo "WAIT"
-                                 :order 20)
-			  (:name "reading list"
-				 :tag "read"
-				 :order 21)
-			  (:name "Inbox"
-				 :category "Inbox" :order 22)
-                          (:discard (:todo "TODO"))
-                          )))))))))
+  (org-super-agenda-mode)
+  (setq org-agenda-custom-commands
+	'(("g" "gtd view"
+           ((agenda "" ((org-agenda-span 'day)
+			(org-super-agenda-groups
+			 '((:name "Today"
+                                  :time-grid t
+                                  :date today
+                                  :todo "TODAY"
+                                  :scheduled today
+                                  :order 1)))))
+            (alltodo "" ((org-agenda-overriding-header "")
+			 (org-super-agenda-groups
+                          '((:name "Quick Picks"
+				   :and (
+					 :effort< "0:30"
+					 :todo "NEXT"
+					 :scheduled nil)
+				   :order 3)
+			    (:name "Next to do"
+                                   :and (:todo "NEXT"
+					       :scheduled nil)
+                                   :order 6)
+                            (:name "Important"
+                                   :tag "Important"
+                                   :priority "A"
+                                   :order 1)
+                            (:name "Due Today"
+                                   :deadline today
+                                   :order 2)
+                            (:name "Due Soon"
+                                   :deadline future
+                                   :order 8)
+                            (:name "Overdue"
+                                   :deadline past
+                                   :order 7)
+                            (:name "Waiting"
+                                   :todo "WAIT"
+                                   :order 20)
+			    (:name "reading list"
+				   :tag "read"
+				   :order 21)
+			    (:name "watch list"
+				   :tag ("series" "movie" "episode")
+				   :order 22)
+			    (:name "Inbox"
+				   :category "Inbox" :order 22)
+                            (:discard (:todo "TODO"))
+                            )))))))))
 ;;; Information gathering
 ;;;; Elfeed - rss reader
 (use-package elfeed
@@ -674,14 +746,15 @@ targets."
   :config
   (transient-define-prefix my/general-transient ()
   [["Apps"
-    ("a" "agenda" org-agenda)
+    ("a" "agenda" (lambda () (interactive) (org-agenda nil "g")))
     ("c" "capture" org-capture)
     ("r" "rss" elfeed)
-    ("m" "email" notmuch)]
+    ("e" "email" notmuch)]
    ["KB"
-    ("f" "find note" consult-notes)
+    ("f" "find note" consult-denote-find)
     ("i" "insert link" denote-link-or-create :if-mode org-mode)
-    ("g" "grep KB" consult-notes-search-in-all-notes)]
+    ("j" "journal" denote-journal-extras-new-or-existing-entry)
+    ("g" "grep KB" consult-denote-grep)]
    ["Misc"
     ("m" "context aware" context-transient :if (lambda () (context-transient--run-hook-collect-results 'context-transient-hook)))
     ("m" "consult mode" consult-mode-command :if-not (lambda () (context-transient--run-hook-collect-results 'context-transient-hook)))
@@ -691,25 +764,104 @@ targets."
 (use-package context-transient
   :bind ("M-o" . context-transient)
   :config
+  (context-transient-define my/denote-transient
+    :doc "transient for denote"
+    :context (string= "./" denote-directory)
+    :menu
+    [["linis"
+      ("l" "links" denote-find-link)
+      ("b" "backlinks" denote-find-backlink)
+      ("B" "backlinks buffer" denote-backlinks)]
+     ["files"
+      ("f" "file" consult-denote-find)
+      ("i" "insert link" denote-link-or-create)
+      ("j" "journal" denote-journal-extras-new-or-existing-entry)]])
   (context-transient-define my/org-agenda-transient
     :doc "Transient fo org-agenda mode"
     :mode 'org-agenda-mode
     :menu
     [("w" "refile" org-agenda-refile)
+     ("e" "effort" org-agenda-set-effort)
      ("s" "schedule" org-agenda-schedule)
      ("d" "deadline" org-agenda-deadline)
      ("S" "save all" org-save-all-org-buffers)]))
 ;;; utility
+;;;; org-capture-ref
+(use-package persid
+  :defer t
+  :vc (:fetcher github :repo "rougier/persid/"))
+(use-package org-capture-ref
+  :vc (:fetcher github :repo "yantar92/org-capture-ref"))
+;;;; beginend - better begin and end buffer
 (use-package beginend
   :config
   (beginend-global-mode))
+;;;; try - try emacs packages without permanently installing them
 (use-package try
+  :after package
   :commands try)
+;;;; crux - various utility functions
 (use-package crux
   :bind (("C-a" . crux-move-beginning-of-line)
 	 ("C-e" . crux-move-end-of-line)
 	 ("C-k" . crux-smart-kill-line))
   :defer t)
+;;;; shrface - better shr rendering
+(use-package shrface
+  :commands (shrface-mode)
+  :hook (eww-mode)
+  :config
+  (setq shrface-href-versatile t)
+  (add-hook 'outline-view-change-hook 'shrface-outline-visibility-changed)
+  (with-eval-after-load 'eww
+    (define-key eww-mode-map (kbd "<tab>") 'shrface-outline-cycle)
+        (define-key eww-mode-map (kbd "TAB") 'shrface-outline-cycle)
+    (define-key eww-mode-map (kbd "S-<tab>")
+		'shrface-outline-cycle-buffer)
+        (define-key eww-mode-map (kbd "S-TAB") 'shrface-outline-cycle-buffer)
+    (define-key eww-mode-map (kbd "C-t") 'shrface-toggle-bullets)
+    (define-key eww-mode-map (kbd "C-j") 'shrface-next-headline)
+    (define-key eww-mode-map (kbd "C-k") 'shrface-previous-headline)
+    (define-key eww-mode-map (kbd "M-l") 'shrface-links-consult)
+    (define-key eww-mode-map (kbd "M-h") 'shrface-headline-consult)))
+
+(use-package shr-tag-pre-highlight
+  :ensure t
+  :after shr
+  :config
+  (add-to-list 'shr-external-rendering-functions '(pre . shrface-shr-tag-pre-highlight))
+  (defun shrface-shr-tag-pre-highlight (pre)
+    "Highlighting code in PRE."
+    (let* ((shr-folding-mode 'none)
+           (shr-current-font 'default)
+           (code (with-temp-buffer
+                   (shr-generic pre)
+                   ;; (indent-rigidly (point-min) (point-max) 2)
+                   (buffer-string)))
+           (lang (or (shr-tag-pre-highlight-guess-language-attr pre)
+                     (let ((sym (language-detection-string code)))
+                       (and sym (symbol-name sym)))))
+           (mode (and lang
+                      (shr-tag-pre-highlight--get-lang-mode lang))))
+      (shr-ensure-newline)
+      (shr-ensure-newline)
+      (setq start (point))
+      (insert
+       (propertize (concat "#+BEGIN_SRC " lang "\n") 'face 'org-block-begin-line)
+       (or (and (fboundp mode)
+                (with-demoted-errors "Error while fontifying: %S"
+                  (shr-tag-pre-highlight-fontify code mode)))
+           code)
+       (propertize "#+END_SRC" 'face 'org-block-end-line ))
+      (shr-ensure-newline)
+      (setq end (point))
+      (shr-ensure-newline)
+      (insert "\n"))))
+;;;; orgmdb - watchlist manager and OMDb API client
+(use-package orgmdb
+  :commands (orgmdb-act)
+  :config
+  (setq orgmdb-omdb-apikey my/omdb-api-key))
 
 
 
