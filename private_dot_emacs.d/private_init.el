@@ -79,7 +79,8 @@
   (add-to-list 'recentf-exclude
                (recentf-expand-file-name no-littering-var-directory))
   (add-to-list 'recentf-exclude
-               (recentf-expand-file-name no-littering-etc-directory)))
+               (recentf-expand-file-name no-littering-etc-directory))
+  (recentf-mode))
 
 (use-package dired
   :ensure nil
@@ -130,10 +131,6 @@
 	xref-show-definitions-function #'consult-xref)
   (unless  window-system
     (setq completion-in-region-function #'consult-completion-in-region)))
-;;;; God Mode — no more RSI
-(use-package god-mode
-  :bind
-  ("C-z" . god-local-mode))
 ;;;; which-key
 (use-package which-key
   :custom
@@ -263,6 +260,8 @@ targets."
   (load-theme 'modus-vivendi-tinted :no-confirm))
 ;;;; mode line
 (use-package mood-line
+  :init
+  (add-hook 'after-init-hook (lambda () (mood-line-mode)))
   :custom
   (mood-line-glyph-alist mood-line-glyphs-unicode))
 ;;;; Disable ugly and unhelpful UI features
@@ -331,7 +330,7 @@ targets."
 ;;;;; treesit-auto - automatic grammar installation
 (use-package treesit-auto
   :custom
-  (treesit-auto-install 'prompt)
+  (treesit-auto-install t)
   :config
   (treesit-auto-add-to-auto-mode-alist 'all)
   (global-treesit-auto-mode))
@@ -522,84 +521,11 @@ e.g., Replace 'Scheduled:' to 'Rept .+1d:'."
 	org-special-ctrl-a/e t
 	org-insert-heading-respect-content nil
 	org-agenda-tags-column 0
+	calendar-location-name "Oostende"
+	calendar-latutude 51.2
+	calendar-longitude 2.9
 	org-columns-default-format-for-agenda "%4Effort(Estimated Effort){:} %TODO %25ITEM(Task) %3PRIORITY %TAGS")
-  (with-eval-after-load 'org-capture
-    (add-to-list 'org-capture-templates '("i" "Inbox" entry (file "inbox.org") "* %?"))
-    (add-to-list 'org-capture-templates '("I" "Inbox(with link)" entry (file "inbox.org") "* %?\n %a"))
-    (add-to-list 'org-capture-templates '("t" "Task" entry (file "inbox.org") "* TODO %?"))
-    (add-to-list 'org-capture-templates '("n" "Permanent note" plain
-					  (file denote-last-path)
-					  #'denote-org-capture
-					  :no-save t
-					  :immediate-finish nil
-					  :kill-buffer t
-					  :jump-to-captured t))
-    (add-to-list 'org-capture-templates
-		 '("N" "Permanent note with template" plain
-		   (file denote-last-path)
-		   (function
-                    (lambda ()
-                      (denote-org-capture-with-prompts :title :keywords nil nil :template)))
-		   :no-save t
-		   :immediate-finish nil
-		   :kill-buffer t
-		   :jump-to-captured t))
-
-    (add-to-list 'org-capture-templates '("p" "person" entry (file "../Knowledge base/person.org")
-					  "* %^{name}%^{EMAIL}p%^{COMPANY}p%^{JOBTITLE}p\n:PROPERTIES:\n:ID: %(org-id-new)\n:END:" :kill-buffer t  :append)
-		 (add-to-list 'org-capture-templates '("a" "Application" entry (file+headline "solicitaties.org" "Applications")
-						       "* %\1 - %\2%^{COMPANY}p%^{JOBTITLE}p%^{LINK}p\n:PROPERTIES:\n:DATE: %u\n:END:\n%?") :append)))
-  (defun my/org-agenda-recent-open-loops ()
-  (interactive)
-      (let ((org-agenda-start-with-log-mode t)
-            (org-agenda-use-time-grid nil))
-	(org-agenda-list nil (org-read-date nil nil "-2d") 4)
-	(beginend-org-agenda-mode-goto-beginning)))
-(defun my/org-agenda-longer-open-loops ()
-  (interactive)
-      (let ((org-agenda-start-with-log-mode t)
-            (org-agenda-use-time-grid nil))
-	(org-agenda-list nil (org-read-date nil nil "-14d") 28)
-	(beginend-org-agenda-mode-goto-beginning)))
-(defun my/gtd-projects ()
-  (interactive)
-      (org-tags-view nil org-gtd-project-headings)
-      (beginend-org-agenda-mode-goto-beginning))
-(defun my/gtd-someday-maybe ()
-  (interactive)
-      (org-tags-view nil (concat "+ORG_GTD=\"" org-gtd-incubate "\"+LEVEL=2"))
-      (beginend-org-agenda-mode-goto-beginning))
-(setq org-todo-keywords '((sequence "TODO(t)" "NEXT(n)" "WAIT(w@)" "|" "DONE(d)" "CNCL(c@)")))
-(defun my/process-inbox ()
-  "Start the inbox processing item, one heading at a time."
-  (interactive)
-  (let ((buffer (find-file org-default-notes-file)))
-    (set-buffer buffer)
-    (goto-char (point-min))
-    (when (org-before-first-heading-p)
-      (org-next-visible-heading 1)
-      (org-N-empty-lines-before-current 1))
-    (if (org-at-heading-p)
-	(progn
-          (my/process-inbox-transient)
-	  (my/process-inbox))
-      (message "Inbox is empty. No items to process.")
-      (whitespace-cleanup))))
-
-(transient-define-prefix my/process-inbox-transient ()
-  "transient for processing inbox items"
-  [["Process"
-   ("e" "effort" org-set-effort :transient t)
-   ("c" "category" my/org-set-area :transient t)
-   ("t" "tags" org-set-tags-command :transient t)]
-   ["Actions"
-    ("r" "refile" org-refile)
-    ("d" "delete" org-cut-subtree)]])
-
-(defun my/org-set-area ()
-  (interactive)
-  (org-set-property "CATEGORY" (completing-read "Area of Focus" '("Home" "Health" "Family" "Career"))))
-  (setq org-tag-alist
+    (setq org-tag-alist
 	'(;; Places
           ("@home" . ?h)
           ("@work" . ?w)
@@ -613,6 +539,19 @@ e.g., Replace 'Scheduled:' to 'Rept .+1d:'."
           ("@email" . ?e)
           ("@calls" . ?a)
           ("@shop" . ?s)))
+  (defun my/org-agenda-recent-open-loops ()
+  (interactive)
+      (let ((org-agenda-start-with-log-mode t)
+            (org-agenda-use-time-grid nil))
+	(org-agenda-list nil (org-read-date nil nil "-2d") 4)
+	(beginend-org-agenda-mode-goto-beginning)))
+(defun my/org-agenda-longer-open-loops ()
+  (interactive)
+      (let ((org-agenda-start-with-log-mode t)
+            (org-agenda-use-time-grid nil))
+	(org-agenda-list nil (org-read-date nil nil "-14d") 28)
+	(beginend-org-agenda-mode-goto-beginning)))
+
   (setq org-agenda-files (list org-directory)))
 ;;;; org-nice-html
 (use-package nice-org-html
@@ -642,59 +581,34 @@ e.g., Replace 'Scheduled:' to 'Rept .+1d:'."
   (org-modern-star 'replace)
   :config
   (global-org-modern-mode))
-;;;; org super agenda
-(use-package org-super-agenda
+;;;; org-gtd
+(use-package org-gtd
   :after org
+  :bind
+  (("C-c a" . org-gtd-engage)
+   ("C-c c" . org-gtd-capture)
+   :map org-gtd-clarify-map
+	("C-c c" . org-gtd-organize))
+  :commands (org-gtd-engage org-gtd-capture)
+  :custom
+  (org-gtd-directory org-directory)
   :config
-  (org-super-agenda-mode)
-  (setq org-agenda-custom-commands
-	'(("g" "gtd view"
-           ((agenda "" ((org-agenda-span 'day)
-			(org-super-agenda-groups
-			 '((:name "Today"
-                                  :time-grid t
-                                  :date today
-                                  :todo "TODAY"
-                                  :scheduled today
-                                  :order 1)))))
-            (alltodo "" ((org-agenda-overriding-header "")
-			 (org-super-agenda-groups
-                          '((:name "Quick Picks"
-				   :and (
-					 :effort< "0:30"
-					 :todo "NEXT"
-					 :scheduled nil)
-				   :order 3)
-			    (:name "Next to do"
-                                   :and (:todo "NEXT"
-					       :scheduled nil)
-                                   :order 6)
-                            (:name "Important"
-                                   :tag "Important"
-                                   :priority "A"
-                                   :order 1)
-                            (:name "Due Today"
-                                   :deadline today
-                                   :order 2)
-                            (:name "Due Soon"
-                                   :deadline future
-                                   :order 8)
-                            (:name "Overdue"
-                                   :deadline past
-                                   :order 7)
-                            (:name "Waiting"
-                                   :todo "WAIT"
-                                   :order 20)
-			    (:name "reading list"
-				   :tag "read"
-				   :order 21)
-			    (:name "watch list"
-				   :tag ("series" "movie" "episode")
-				   :order 22)
-			    (:name "Inbox"
-				   :category "Inbox" :order 22)
-                            (:discard (:todo "TODO"))
-                            )))))))))
+  (setq org-edna-use-inheritance t)
+  (org-edna-mode)
+  (org-gtd-mode 1)
+  (add-to-list 'org-gtd-capture-templates '("n" "Permanent note" plain
+					    (file denote-last-path)
+					    #'denote-org-capture
+					    :no-save t
+					    :immediate-finish nil
+					    :kill-buffer t
+					    :jump-to-captured t))
+
+  (add-to-list 'org-gtd-capture-templates '("p" "person" entry (file "inbox.org")
+					    "* %^{name}%^{EMAIL}p%^{COMPANY}p%^{JOBTITLE}p\n:PROPERTIES:\n:ID: %(org-id-new)\n:END:" :kill-buffer t  :append))
+	       (add-to-list 'org-gtd-capture-templates '("a" "Application" entry (file+headline "solicitaties.org" "Applications")
+						       "* %\1 - %\2%^{COMPANY}p%^{JOBTITLE}p%^{LINK}p\n:PROPERTIES:\n:DATE: %u\n:END:\n%?") :append)
+  (setq org-gtd-organize-hooks '(org-set-tags-command org-set-effort org-gtd-set-area-of-focus)))
 ;;; Information gathering
 ;;;; Elfeed - rss reader
 (use-package elfeed
@@ -751,8 +665,8 @@ e.g., Replace 'Scheduled:' to 'Rept .+1d:'."
   :config
   (transient-define-prefix my/general-transient ()
   [["Apps"
-    ("a" "agenda" (lambda () (interactive) (org-agenda nil "g")))
-    ("c" "capture" org-capture)
+    ("a" "agenda" org-gtd-engage)
+    ("c" "capture" org-gtd-capture)
     ("r" "rss" elfeed)
     ("e" "email" notmuch)]
    ["KB"
@@ -773,7 +687,7 @@ e.g., Replace 'Scheduled:' to 'Rept .+1d:'."
     :doc "transient for denote"
     :context (string= "./" denote-directory)
     :menu
-    [["linis"
+    [["links"
       ("l" "links" denote-find-link)
       ("b" "backlinks" denote-find-backlink)
       ("B" "backlinks buffer" denote-backlinks)]
@@ -785,18 +699,24 @@ e.g., Replace 'Scheduled:' to 'Rept .+1d:'."
     :doc "Transient fo org-agenda mode"
     :mode 'org-agenda-mode
     :menu
-    [("w" "refile" org-agenda-refile)
+    [["place"
+      ("c" "clarify" org-gtd-clarify-agenda-item)
+      ("a" "area" org-gtd-area-of-focus-set-on-agenda-item)]
+     ["time"
      ("e" "effort" org-agenda-set-effort)
      ("s" "schedule" org-agenda-schedule)
-     ("d" "deadline" org-agenda-deadline)
-     ("S" "save all" org-save-all-org-buffers)]))
+     ("d" "deadline" org-agenda-deadline)]
+     ["misc"
+     ("S" "save all" org-save-all-org-buffers)]]))
 ;;; utility
 ;;;; org-capture-ref
 (use-package persid
   :defer t
   :vc (:fetcher github :repo "rougier/persid/"))
 (use-package org-capture-ref
-  :vc (:fetcher github :repo "yantar92/org-capture-ref"))
+  :vc (:fetcher github :repo "yantar92/org-capture-ref")
+  :config
+  (org-capture-ref-set-capture-template))
 ;;;; beginend - better begin and end buffer
 (use-package beginend
   :diminish beginend-global-mode
@@ -868,20 +788,8 @@ e.g., Replace 'Scheduled:' to 'Rept .+1d:'."
   :commands (orgmdb-act)
   :config
   (setq orgmdb-omdb-apikey my/omdb-api-key))
-
-
-
-
-(custom-set-variables
- ;; custom-set-variables was added by Custom.
- ;; If you edit it by hand, you could mess it up, so be careful.
- ;; Your init file should contain only one such instance.
- ;; If there is more than one, they won't work right.
- '(package-vc-selected-packages
-   '((vc-use-package :vc-backend Git :url "https://github.com/slotThe/vc-use-package"))))
-(custom-set-faces
- ;; custom-set-faces was added by Custom.
- ;; If you edit it by hand, you could mess it up, so be careful.
- ;; Your init file should contain only one such instance.
- ;; If there is more than one, they won't work right.
- )
+;;;; eat - better terminal emulator
+(use-package eat
+  :commands (eat eat-project)
+  :config
+  (eat-eshell-mode t))

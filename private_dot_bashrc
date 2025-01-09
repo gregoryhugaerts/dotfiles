@@ -35,6 +35,10 @@ cfzf() {
   fi
 }
 
+[ -n "$EAT_SHELL_INTEGRATION_DIR" ] && \
+  source "$EAT_SHELL_INTEGRATION_DIR/bash"
+
+
 # Aliases
 alias sl=ls
 alias la='ls -AF' # Compact view, show hidden
