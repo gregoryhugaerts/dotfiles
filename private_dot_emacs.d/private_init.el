@@ -494,6 +494,7 @@ e.g., Replace 'Scheduled:' to 'Rept .+1d:'."
 	org-confirm-babel-evaluate nil
 	org-export-with-section-numbers 1
 	org-export-allow-bind-keywords t
+	org-log-done 'time
 	org-use-speed-commands t
 	org-yank-adjusted-subtrees t
 	org-hide-emphasis-markers t
@@ -508,6 +509,7 @@ e.g., Replace 'Scheduled:' to 'Rept .+1d:'."
 	org-stuck-projects '("+LEVEL=2/-DONE" ("NEXT" "WAIT") nil "")
 	org-ellipsis "  "
 	org-startup-indented t
+	org-M-RET-may-split-line '((default . nil))
 	org-image-actual-width (list 300)
 	org-attach-id-dir "assets/"
 	org-pretty-entities t
@@ -592,23 +594,33 @@ e.g., Replace 'Scheduled:' to 'Rept .+1d:'."
   :commands (org-gtd-engage org-gtd-capture)
   :custom
   (org-gtd-directory org-directory)
+  :init
+  (with-eval-after-load 'org-gtd-capture
+    (add-to-list 'org-gtd-capture-templates '("n" "Permanent note" plain
+					      (file denote-last-path)
+					      #'denote-org-capture
+					      :no-save t
+					      :immediate-finish nil
+					      :kill-buffer t
+					      :jump-to-captured t))
+
+    (add-to-list 'org-gtd-capture-templates '("a" "Application" entry (file+headline "solicitaties.org" "Applications")
+					      "* %\1 - %\2%^{COMPANY}p%^{JOBTITLE}p%^{LINK}p\n:PROPERTIES:\n:DATE: %u\n:END:\n%?") :append))
   :config
   (setq org-edna-use-inheritance t)
   (org-edna-mode)
   (org-gtd-mode 1)
-  (add-to-list 'org-gtd-capture-templates '("n" "Permanent note" plain
-					    (file denote-last-path)
-					    #'denote-org-capture
-					    :no-save t
-					    :immediate-finish nil
-					    :kill-buffer t
-					    :jump-to-captured t))
-
-  (add-to-list 'org-gtd-capture-templates '("p" "person" entry (file "inbox.org")
-					    "* %^{name}%^{EMAIL}p%^{COMPANY}p%^{JOBTITLE}p\n:PROPERTIES:\n:ID: %(org-id-new)\n:END:" :kill-buffer t  :append))
-	       (add-to-list 'org-gtd-capture-templates '("a" "Application" entry (file+headline "solicitaties.org" "Applications")
-						       "* %\1 - %\2%^{COMPANY}p%^{JOBTITLE}p%^{LINK}p\n:PROPERTIES:\n:DATE: %u\n:END:\n%?") :append)
   (setq org-gtd-organize-hooks '(org-set-tags-command org-set-effort org-gtd-set-area-of-focus)))
+;;;; org-contacts
+(use-package org-contacts
+  :after org
+  :custom
+  (org-contacts-files `(,(concat org-directory "/person.org")))
+  :commands (org-contacts)
+  :init
+  (with-eval-after-load 'org-gtd-capture
+    (add-to-list 'org-gtd-capture-templates '("p" "person" entry (file "person.org")
+					"* %(org-contacts-template-name)%^{COMPANY}p%^{JOBTITLE}p\n:PROPERTIES:\n:EMAIL: %(org-contacts-template-email)\n:END:")))) 
 ;;; Information gathering
 ;;;; Elfeed - rss reader
 (use-package elfeed
