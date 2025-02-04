@@ -16,7 +16,7 @@ eval "$(fzf --bash)"
 eval "$(direnv hook bash)"
 
 # Created by `pipx` on 2024-11-20 17:53:28
-export PATH="$PATH:/data/data/com.termux/files/home/.local/bin"
+export PATH="$PATH:/data/data/com.termux/files/home/.local/bin:/data/data/com.termux/files/home/.cargo/bin"
 
 eval "$(starship init bash)"
 

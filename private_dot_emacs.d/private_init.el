@@ -234,6 +234,7 @@ targets."
     "n" #'embark-kmacro-name)
 
   (add-to-list 'embark-keymap-alist '(kmacro . embark-kmacro-map))
+  
 ;;;;;;; better help
   (with-eval-after-load 'shell
   (define-key shell-mode-map [remap display-local-help] #'man))
@@ -253,17 +254,35 @@ targets."
   :custom
   (wgrep-auto-save-buffer t)
   (wgrep-enable-key "i"))
+
+;;;;;; link hint
+(use-package link-hint
+  :bind
+  ("C-c l o" . link-hint-open-link)
+  ("C-c l c" . link-hint-copy-link)
+  ("M-." . link-hint-open-link-at-point)
+  :config
+  (setq link-hint-action-fallback-commands
+      (list :open (lambda ()
+                    (condition-case _
+                        (progn
+                          (embark-act)
+                          t)
+                      (error
+                       nil))))))
 ;;; UI
 ;;;; theme
 (use-package modus-themes
   :init
   (load-theme 'modus-vivendi-tinted :no-confirm))
+
 ;;;; mode line
 (use-package mood-line
   :init
   (add-hook 'after-init-hook (lambda () (mood-line-mode)))
   :custom
-  (mood-line-glyph-alist mood-line-glyphs-unicode))
+  (mood-line-glyph-
+   alist mood-line-glyphs-unicode))
 ;;;; Disable ugly and unhelpful UI features
 (menu-bar-mode -1)
 (tool-bar-mode -1)
@@ -347,6 +366,15 @@ targets."
 (use-package devdocs
   :bind ("C-h D" . devdocs-lookup)
   :commands (devdocs-lookup devdocs-install))
+;;;; rust
+(use-package rust-mode
+  :init
+  (setq rust-mode-treesitter-derive t))
+
+(use-package rustic
+  :after rust-mode
+  :config
+  (setq rustic-lsp-client 'eglot))
 ;;;; python
 ;;;;; docstring
 (use-package python-insert-docstring
@@ -805,3 +833,36 @@ e.g., Replace 'Scheduled:' to 'Rept .+1d:'."
   :commands (eat eat-project)
   :config
   (eat-eshell-mode t))
+;; random functions
+(defun unpackaged/org-fix-blank-lines (&optional prefix)
+  "Ensure that blank lines exist between headings and between headings and their contents.
+With prefix, operate on whole buffer. Ensures that blank lines
+exist after each headings's drawers."
+  (interactive "P")
+  (org-map-entries (lambda ()
+		     (org-with-wide-buffer
+		      ;; `org-map-entries' narrows the buffer, which prevents us from seeing
+		      ;; newlines before the current heading, so we do this part widened.
+		      (while (not (looking-back "\n\n" nil))
+			;; Insert blank lines before heading.
+			(insert "\n")))
+		     (let ((end (org-entry-end-position)))
+		       ;; Insert blank lines before entry content
+		       (forward-line)
+		       (while (and (org-at-planning-p)
+				   (< (point) (point-max)))
+			 ;; Skip planning lines
+			 (forward-line))
+		       (while (re-search-forward org-drawer-regexp end t)
+			 ;; Skip drawers. You might think that `org-at-drawer-p' would suffice, but
+			 ;; for some reason it doesn't work correctly when operating on hidden text.
+			 ;; This works, taken from `org-agenda-get-some-entry-text'.
+			 (re-search-forward "^[ \t]*:END:.*\n?" end t)
+			 (goto-char (match-end 0)))
+		       (unless (or (= (point) (point-max))
+				   (org-at-heading-p)
+				   (looking-at-p "\n"))
+			 (insert "\n"))))
+		   t (if prefix
+			 nil
+		                              'tree)))
