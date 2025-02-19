@@ -12,6 +12,7 @@
   :custom
   (package-native-compile t)
   (package-install-upgrade-built-in t)
+  (package-quickstart t)
   :config
   (setq package-enable-at-startup nil)
   (add-to-list 'package-archives
@@ -46,7 +47,7 @@
 (use-package emacs
   :defer nil
   :init
-    (defun crm-indicator (args)
+  (defun crm-indicator (args)
     (cons (format "[CRM%s] %s"
                   (replace-regexp-in-string
                    "\\`\\[.*?]\\*\\|\\[.*?]\\*\\'" ""
@@ -73,14 +74,14 @@
 (use-package recentf
   :ensure nil
   :after no-littering
+  :hook (after-init . recentf-mode)
   :custom
   (recentf-auto-cleanup 'never)
   :config
   (add-to-list 'recentf-exclude
                (recentf-expand-file-name no-littering-var-directory))
   (add-to-list 'recentf-exclude
-               (recentf-expand-file-name no-littering-etc-directory))
-  (recentf-mode))
+               (recentf-expand-file-name no-littering-etc-directory)))
 
 (use-package dired
   :ensure nil
@@ -96,7 +97,6 @@
   (vertico-mode))
 ;;;; Minibuffer completion and searching improvement packages
 (use-package marginalia
-  :after icomplete
   :config (marginalia-mode))
 
 (use-package orderless
@@ -145,8 +145,8 @@
   :bind (("M-." . embark-act)
 	 ("C-h B" . embark-bindings)
 	 :map embark-general-map
-	      ("G" . embark-internet-search)
-	      ("O" . embark-default-action-in-other-window))
+	 ("G" . embark-internet-search)
+	 ("O" . embark-default-action-in-other-window))
   :config
 ;;;;; Use `which-key' to display possible actions instead of a separate buffer
   (defun embark-which-key-indicator ()
@@ -237,11 +237,11 @@ targets."
   
 ;;;;;;; better help
   (with-eval-after-load 'shell
-  (define-key shell-mode-map [remap display-local-help] #'man))
-(with-eval-after-load 'sh-script
-  (define-key sh-mode-map [remap display-local-help] #'man))
-(with-eval-after-load 'esh-mode
-  (define-key eshell-mode-map [remap display-local-help] #'man))
+    (define-key shell-mode-map [remap display-local-help] #'man))
+  (with-eval-after-load 'sh-script
+    (define-key sh-mode-map [remap display-local-help] #'man))
+  (with-eval-after-load 'esh-mode
+    (define-key eshell-mode-map [remap display-local-help] #'man))
   )
 
 ;;;;;; Embark-Consult integration package
@@ -263,13 +263,13 @@ targets."
   ("M-." . link-hint-open-link-at-point)
   :config
   (setq link-hint-action-fallback-commands
-      (list :open (lambda ()
-                    (condition-case _
-                        (progn
-                          (embark-act)
-                          t)
-                      (error
-                       nil))))))
+	(list :open (lambda ()
+                      (condition-case _
+                          (progn
+                            (embark-act)
+                            t)
+			(error
+			 nil))))))
 ;;; UI
 ;;;; theme
 (use-package modus-themes
@@ -283,12 +283,12 @@ targets."
   :custom
   (mood-line-glyph-
    alist mood-line-glyphs-unicode))
-;;;; Disable ugly and unhelpful UI features
-(menu-bar-mode -1)
-(tool-bar-mode -1)
-(when (fboundp 'scroll-bar-mode) (scroll-bar-mode))
+
 ;;; Coding
 ;;;; general
+;;;;; folding
+(use-package treesit-fold
+  :hook (prog-mode . treesit-fold-mode))
 ;;;;; git
 (use-package magit
   :commands (magit magit-status))
@@ -300,7 +300,7 @@ targets."
   (corfu-cycle t)           ;; Enable cycling for `corfu-next/previous'
   (corfu-auto t)
   (corfu-preselect 'prompt) ;; Always preselect the prompt
-;; Use TAB for cycling, default is `corfu-complete'.
+  ;; Use TAB for cycling, default is `corfu-complete'.
   :bind
   (:map corfu-map
         ("TAB" . corfu-next)
@@ -368,10 +368,12 @@ targets."
   :commands (devdocs-lookup devdocs-install))
 ;;;; rust
 (use-package rust-mode
+  :defer t
   :init
   (setq rust-mode-treesitter-derive t))
 
 (use-package rustic
+  :mode "\\.rs\\'"
   :after rust-mode
   :config
   (setq rustic-lsp-client 'eglot))
@@ -382,13 +384,12 @@ targets."
 ;;;;; direnv
 (use-package envrc
   :if (executable-find "direnv")
-  :config
-  (envrc-global-mode))
+  :hook (after-init . envrc-global-mode))
 ;;; Notes
 ;;;; Denote
 (use-package denote
   :after org
-  :commands (denote denote-link-after-creating denote-region denote-silo)
+  :commands (denote denote-link-after-creating denote-region denote-silo denote-open-or-create)
   :init
   (require 'denote-org-dblock)
   (denote-rename-buffer-mode 1)
@@ -409,12 +410,12 @@ targets."
   (denote-faces-link ((t (:slant italic)))))
 
 ;; Denote extensions
-(use-package consult-denote
-  :after denote
-  :commands (consult-denote-mode)
+
+(use-package consult-notes
+  :commands (consult-notes consult-notes-search-in-all-notes)
   :config
-  (consult-denote-mode)
-  (setq consult-denote-grep-command #'consult-ripgrep))
+  (consult-notes-denote-mode)
+  (consult-notes-org-headings-mode))
 
 (use-package denote-explore
   :after denote
@@ -431,12 +432,13 @@ targets."
 
 ;;;; bibtex
 (use-package bibtex
-   :custom
-    (bibtex-dialect 'BibTeX)
-    (bibtex-user-optional-fields
-     '(("keywords" "Keywords to describe the entry" "")
-       ("file" "Link to a document file." "" )))
-    (bibtex-align-at-equal-sign t)
+  :defer t
+  :custom
+  (bibtex-dialect 'BibTeX)
+  (bibtex-user-optional-fields
+   '(("keywords" "Keywords to describe the entry" "")
+     ("file" "Link to a document file." "" )))
+  (bibtex-align-at-equal-sign t)
   :config
   (if (equal system-configuration "aarch64-unknown-linux-android")
       (setq bibtex-files '("~/storage/shared/Documents/bibtex/bibtex.bib"))
@@ -456,9 +458,9 @@ targets."
   :config
   (setq citar-at-point-function 'embark-act)
   (setq org-cite-global-bibliography bibtex-files
-      org-cite-insert-processor 'citar
-      org-cite-follow-processor 'citar
-      org-cite-activate-processor 'citar))
+	org-cite-insert-processor 'citar
+	org-cite-follow-processor 'citar
+	org-cite-activate-processor 'citar))
 
 (use-package citar-embark
   :after citar embark
@@ -555,7 +557,7 @@ e.g., Replace 'Scheduled:' to 'Rept .+1d:'."
 	calendar-latutude 51.2
 	calendar-longitude 2.9
 	org-columns-default-format-for-agenda "%4Effort(Estimated Effort){:} %TODO %25ITEM(Task) %3PRIORITY %TAGS")
-    (setq org-tag-alist
+  (setq org-tag-alist
 	'(;; Places
           ("@home" . ?h)
           ("@work" . ?w)
@@ -570,17 +572,17 @@ e.g., Replace 'Scheduled:' to 'Rept .+1d:'."
           ("@calls" . ?a)
           ("@shop" . ?s)))
   (defun my/org-agenda-recent-open-loops ()
-  (interactive)
-      (let ((org-agenda-start-with-log-mode t)
-            (org-agenda-use-time-grid nil))
-	(org-agenda-list nil (org-read-date nil nil "-2d") 4)
-	(beginend-org-agenda-mode-goto-beginning)))
-(defun my/org-agenda-longer-open-loops ()
-  (interactive)
-      (let ((org-agenda-start-with-log-mode t)
-            (org-agenda-use-time-grid nil))
-	(org-agenda-list nil (org-read-date nil nil "-14d") 28)
-	(beginend-org-agenda-mode-goto-beginning)))
+    (interactive)
+    (let ((org-agenda-start-with-log-mode t)
+          (org-agenda-use-time-grid nil))
+      (org-agenda-list nil (org-read-date nil nil "-2d") 4)
+      (beginend-org-agenda-mode-goto-beginning)))
+  (defun my/org-agenda-longer-open-loops ()
+    (interactive)
+    (let ((org-agenda-start-with-log-mode t)
+          (org-agenda-use-time-grid nil))
+      (org-agenda-list nil (org-read-date nil nil "-14d") 28)
+      (beginend-org-agenda-mode-goto-beginning)))
 
   (setq org-agenda-files (list org-directory)))
 ;;;; org-nice-html
@@ -618,7 +620,7 @@ e.g., Replace 'Scheduled:' to 'Rept .+1d:'."
   (("C-c a" . org-gtd-engage)
    ("C-c c" . org-gtd-capture)
    :map org-gtd-clarify-map
-	("C-c c" . org-gtd-organize))
+   ("C-c c" . org-gtd-organize))
   :commands (org-gtd-engage org-gtd-capture)
   :custom
   (org-gtd-directory org-directory)
@@ -648,12 +650,13 @@ e.g., Replace 'Scheduled:' to 'Rept .+1d:'."
   :init
   (with-eval-after-load 'org-gtd-capture
     (add-to-list 'org-gtd-capture-templates '("p" "person" entry (file "person.org")
-					"* %(org-contacts-template-name)%^{COMPANY}p%^{JOBTITLE}p\n:PROPERTIES:\n:EMAIL: %(org-contacts-template-email)\n:END:")))) 
+					      "* %(org-contacts-template-name)%^{COMPANY}p%^{JOBTITLE}p\n:PROPERTIES:\n:EMAIL: %(org-contacts-template-email)\n:END:")))) 
 ;;; Information gathering
 ;;;; Elfeed - rss reader
 (use-package elfeed
   :commands (elfeed elfeed-update))
 (use-package elfeed-protocol
+  :disable t
   :after elfeed
   :custom
   ((elfeed-use-curl t)
@@ -674,17 +677,17 @@ e.g., Replace 'Scheduled:' to 'Rept .+1d:'."
   :custom
   ((notmuch-archive-tags '("-inbox" "-unread" "+archive"))
    (notmuch-tagging-keys
-   '(("a" notmuch-archive-tags "Archive")
-     ("u" notmuch-show-mark-read-tags "Mark read")
-     ("f"
-      ("+flagged")
-      "Flag")
-     ("s"
-      ("+spam" "-inbox" "-unread")
-      "Mark as spam")
-     ("d"
-      ("+trash" "-unread" "-inbox")
-      "Delete")))))
+    '(("a" notmuch-archive-tags "Archive")
+      ("u" notmuch-show-mark-read-tags "Mark read")
+      ("f"
+       ("+flagged")
+       "Flag")
+      ("s"
+       ("+spam" "-inbox" "-unread")
+       "Mark as spam")
+      ("d"
+       ("+trash" "-unread" "-inbox")
+       "Delete")))))
 
 (use-package notmuch-transient
   :after notmuch)
@@ -704,56 +707,72 @@ e.g., Replace 'Scheduled:' to 'Rept .+1d:'."
   :bind ("C-c o" . my/general-transient)
   :config
   (transient-define-prefix my/general-transient ()
-  [["Apps"
-    ("a" "agenda" org-gtd-engage)
-    ("c" "capture" org-gtd-capture)
-    ("r" "rss" elfeed)
-    ("e" "email" notmuch)]
-   ["KB"
-    ("f" "find note" consult-denote-find)
-    ("i" "insert link" denote-link-or-create :if-mode org-mode)
-    ("j" "journal" denote-journal-extras-new-or-existing-entry)
-    ("g" "grep KB" consult-denote-grep)]
-   ["Misc"
-    ("m" "context aware" context-transient :if (lambda () (context-transient--run-hook-collect-results 'context-transient-hook)))
-    ("m" "consult mode" consult-mode-command :if-not (lambda () (context-transient--run-hook-collect-results 'context-transient-hook)))
-    ("." "embark" embark-act)
-    ("'" "embark(dwim)" embark-dwim)]]))
+    [["Apps"
+      ("a" "agenda" org-gtd-engage)
+      ("c" "capture" org-gtd-capture)
+      ("r" "rss" elfeed)
+      ("e" "email" notmuch)]
+     ["KB"
+      ("f" "find note" consult-denote-find)
+      ("i" "insert link" denote-link-or-create :if-mode org-mode)
+      ("j" "journal" denote-journal-extras-new-or-existing-entry)
+      ("g" "grep KB" consult-denote-grep)]
+     ["Misc"
+      ("m" "context aware" context-transient :if (lambda () (context-transient--run-hook-collect-results 'context-transient-hook)))
+      ("m" "consult mode" consult-mode-command :if-not (lambda () (context-transient--run-hook-collect-results 'context-transient-hook)))
+      ("." "embark" embark-act)
+      ("'" "embark(dwim)" embark-dwim)]]))
 ;;; context transients
 (use-package context-transient
   :bind ("M-o" . context-transient)
   :config
   (context-transient-define my/denote-transient
-    :doc "transient for denote"
-    :context (string= "./" denote-directory)
-    :menu
-    [["links"
-      ("l" "links" denote-find-link)
-      ("b" "backlinks" denote-find-backlink)
-      ("B" "backlinks buffer" denote-backlinks)]
-     ["files"
-      ("f" "file" consult-denote-find)
-      ("i" "insert link" denote-link-or-create)
-      ("j" "journal" denote-journal-extras-new-or-existing-entry)]])
+			    :doc "transient for denote"
+			    :context (string= "./" denote-directory)
+			    :menu
+			    [["links"
+			      ("l" "links" denote-find-link)
+			      ("b" "backlinks" denote-find-backlink)
+			      ("B" "backlinks buffer" denote-backlinks)]
+			     ["files"
+			      ("f" "file" consult-denote-find)
+			      ("i" "insert link" denote-link-or-create)
+			      ("j" "journal" denote-journal-extras-new-or-existing-entry)]])
   (context-transient-define my/org-agenda-transient
-    :doc "Transient fo org-agenda mode"
-    :mode 'org-agenda-mode
-    :menu
-    [["place"
-      ("c" "clarify" org-gtd-clarify-agenda-item)
-      ("a" "area" org-gtd-area-of-focus-set-on-agenda-item)]
-     ["time"
-     ("e" "effort" org-agenda-set-effort)
-     ("s" "schedule" org-agenda-schedule)
-     ("d" "deadline" org-agenda-deadline)]
-     ["misc"
-     ("S" "save all" org-save-all-org-buffers)]]))
+			    :doc "Transient fo org-agenda mode"
+			    :mode 'org-agenda-mode
+			    :menu
+			    [["place"
+			      ("c" "clarify" org-gtd-clarify-agenda-item)
+			      ("a" "area" org-gtd-area-of-focus-set-on-agenda-item)]
+			     ["time"
+			      ("e" "effort" org-agenda-set-effort)
+			      ("s" "schedule" org-agenda-schedule)
+			      ("d" "deadline" org-agenda-deadline)]
+			     ["misc"
+			      ("S" "save all" org-save-all-org-buffers)]]))
 ;;; utility
+;;;; consult-omni
+(use-package consult-omni
+  :defer t
+  :vc (:fetcher github :repo "armindarvish/consult-omni")
+    :after consult
+  :custom
+   ;; General settings that apply to all sources
+  (consult-omni-show-preview t) ;;; show previews
+  (consult-omni-preview-key "C-o") ;;; set the preview key to C-o
+  :config
+  ;; Load Sources Core code
+  (require 'consult-omni-sources)
+  ;; Load Embark Actions
+  (require 'consult-omni-embark)
+  (consult-omni-sources-load-modules))
 ;;;; org-capture-ref
 (use-package persid
   :defer t
   :vc (:fetcher github :repo "rougier/persid/"))
 (use-package org-capture-ref
+  :defer t
   :vc (:fetcher github :repo "yantar92/org-capture-ref")
   :config
   (org-capture-ref-set-capture-template))
@@ -781,10 +800,10 @@ e.g., Replace 'Scheduled:' to 'Rept .+1d:'."
   (add-hook 'outline-view-change-hook 'shrface-outline-visibility-changed)
   (with-eval-after-load 'eww
     (define-key eww-mode-map (kbd "<tab>") 'shrface-outline-cycle)
-        (define-key eww-mode-map (kbd "TAB") 'shrface-outline-cycle)
+    (define-key eww-mode-map (kbd "TAB") 'shrface-outline-cycle)
     (define-key eww-mode-map (kbd "S-<tab>")
 		'shrface-outline-cycle-buffer)
-        (define-key eww-mode-map (kbd "S-TAB") 'shrface-outline-cycle-buffer)
+    (define-key eww-mode-map (kbd "S-TAB") 'shrface-outline-cycle-buffer)
     (define-key eww-mode-map (kbd "C-t") 'shrface-toggle-bullets)
     (define-key eww-mode-map (kbd "C-j") 'shrface-next-headline)
     (define-key eww-mode-map (kbd "C-k") 'shrface-previous-headline)
@@ -865,4 +884,4 @@ exist after each headings's drawers."
 			 (insert "\n"))))
 		   t (if prefix
 			 nil
-		                              'tree)))
+		       'tree)))
